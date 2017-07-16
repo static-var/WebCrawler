@@ -14,18 +14,29 @@ class Crawl:
     blackListedLinks = []  # list of all the black listed links
     logs=[]                # keep track of all the fetching activities
     rp = robotparser.RobotFileParser()  #robotParser
+    isAFileLink=[]         # A list of common file type which should not be crawled (as per the current needs of this research)
 
     def __init__(self,main_URL):
         self.main_URL = main_URL
         if self.check_Link(self.main_URL):
             self.robotParser(self.main_URL)
             self.toCrawl.append(self.main_URL)
-            self.fetch_Links(self.main_URL)
+            self.looper_Function()
 
     # returns all the unique values from the list
     def giveSets(self,lists):
         lists = set(lists)
         return list(lists)
+
+    # Set all the links which should not be crawled to isAFileLink
+    isAFileLink = ['.pdf', '.doc', '.docx', '.jpg', '.jpge', '#', '.txt', '.py', '.c', '.cpp', '.zip']
+
+    # Check if a link is actully a file or a web page.
+    def fileLinksCheck(self,URL):
+        if self.isAFileLink not in URL:
+            return True
+        else:
+            return False
 
     # return the name of the website with domain
     def domainName (self, dName):
@@ -55,16 +66,22 @@ class Crawl:
             self.blackList = 1
             return False
 
-    # Function which fetches links from the page and puts those links in dictionary
+    # This function finds all the links and passes it to a dictionary with title of page and URL.
     def fetch_Links(self,URL):
-        ''' Find all the links and pass it to a dictionary with title of page and URL. '''
         # If the link is already fetched then don't repeat this process
-        conn = requests.get(URL)
-        if URL in self.crawled and conn.status_code != 200:
+        try:
+            conn = requests.get(URL)
+            if URL in self.crawled and conn.status_code != 200 :
+                conn.close()
+                self.toCrawl.remove(URL)
+                self.logs.append(URL+"Not a URL")
+                return
             conn.close()
+        except requests.exceptions.MissingSchema:
             self.toCrawl.remove(URL)
+            self.logs.append(URL + "Not a URL")
             return
-        conn.close()
+
         # looking out for run time errors due to consistent requests being made
         try:
             sourceCode = requests.get(URL)
@@ -85,25 +102,35 @@ class Crawl:
         soup = BeautifulSoup(packets,"html.parser")
         run = 0
 
+        # A check to see the number of links in page are not zero.
+        # If they are 0 then remove link from the toCrawl list and exit
+        if len(soup.find_all('a',href=True)) == 0:
+            self.toCrawl.remove(URL)
+            self.crawled.append(URL)
+            self.logs.append(URL + "Crawled, Single Link Page")
+            return
+
         # find all the links (anchor tag with href attribute) in the page
         for a in soup.find_all('a',href=True):
             links = str(a['href'])
             if run == 0:
                 print("Found links on page : "+URL)
             run += 1
+
             # check if the link belongs to the same domain
             if links.startswith(self.main_URL):
-                pageLinks.append(a['href'])
-                # Check all the links in the page are already crawled or not
-                if a['href'] not in self.toCrawl and a['href'] not in self.crawled:
-                    self.toCrawl.append(a['href'])
+                # Check if link starts with '#' or ends with '.pdf'.
+                if '#' not in links or not links.endswith('.pdf'):
+                    pageLinks.append(a['href'])
 
+                    # Check all the links in the page are already crawled or not
+                    if a['href'] not in self.toCrawl and a['href'] not in self.crawled:
+                        self.toCrawl.append(a['href'])
 
-                print(run)
         # get title of the page
         title = soup.find('title')
 
-        # make a API
+        # convert to an API like structure
         self.make_dictionary(URL,title.string,pageLinks)
 
         # Put the current link in crawled list as it has been processed.
@@ -112,11 +139,7 @@ class Crawl:
         # remove the page URL from toCrawl.
         self.toCrawl.remove(URL)
 
-        # remove redundant entries from toCrawl -- just in case
-        self.toCrawl = set(self.toCrawl)
-        self.toCrawl = list(self.toCrawl)
-
-        # for getting logs
+        # for getting logs in terminal
         print(self.pageList)
         print(self.toCrawl)
         print(len(self.toCrawl))
@@ -124,8 +147,7 @@ class Crawl:
         # Always close all sorts of connections
         sourceCode.close()
 
-        #TODO : put it in a loop so that the program can become a complete crawler
-        exit(0)
+        # Done : put it in a loop so that the program can become a complete crawler
 
     def make_dictionary(self,URL,title,listOfLinks):
         d={
@@ -133,10 +155,29 @@ class Crawl:
             'Title' : title,
             'Links' : listOfLinks
         }
-        self.pageList.append(d)
+        self.pageList.append(d.copy())
 
+    def looper_Function(self):
+        if len(self.toCrawl) != 0:
+            for links in self.toCrawl:
+                fileWriting = open('links.txt', 'w+')
+                for items in self.toCrawl:
+                    fileWriting.write("%s\n" % items)
+                fileWriting.close()
+
+                fileWriting = open('logs.txt', 'w+')
+                for items in self.logs:
+                    fileWriting.write("%s\n" % items)
+                fileWriting.close()
+
+
+                self.fetch_Links(links)
+        else:
+            print(" All links fetched ")
+            exit(0)
 
     #TODO : Convert list of dictionaries into NEO4J nodes and relation format
     #TODO : Look out for more RUNTIME errors - Run on more than one website
-    #TODO : Close each and every connection which is opened.
-christ = Crawl("https://christuniversity.in/")
+    #TODO : Convert all the relative URL to Absolute URLs
+
+OBJ = Crawl("some random website URL!")
