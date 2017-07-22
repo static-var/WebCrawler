@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 from urllib import parse
 from urllib import robotparser
+from urllib.parse import urljoin
 import requests
 
 from urllib.parse import urlsplit
@@ -14,7 +15,25 @@ class Crawl:
     blackListedLinks = []  # list of all the black listed links
     logs=[]                # keep track of all the fetching activities
     rp = robotparser.RobotFileParser()  #robotParser
-    isAFileLink=[]         # A list of common file type which should not be crawled (as per the current needs of this research)
+    # A list of common file type which should not be crawled (as per the current needs of this research)
+    # also an attempt to avoid any sort of form
+    isAFileLink = ['.pdf',      # .pdf files
+                   '.doc',      # documents files
+                   '.docx',     # modern document files
+                   '.jpg',      # image files
+                   '.jpge',     # image files
+                   '#',         # multiple page like structuring on same page or sometimes for form/javascript purpose
+                   '.txt',      # for text files (unusual but still) / robots.txt
+                   '.py',       # for any py file connected to form
+                   '.c',        # for any .c server side files
+                   '.cpp',      # for any .cpp server side files
+                   '.zip',      # for any zip (usually a download)
+                   '?',         # used in get method of HTML while passing values to another page from a form
+                   'js',        # for javascript files
+                   'css',       # for style script file
+                   'asp',       # for server side asp files
+                   'aspx'       # for server side aspx files
+     ]
 
     def __init__(self,main_URL):
         self.main_URL = main_URL
@@ -28,12 +47,9 @@ class Crawl:
         lists = set(lists)
         return list(lists)
 
-    # Set all the links which should not be crawled to isAFileLink
-    isAFileLink = ['.pdf', '.doc', '.docx', '.jpg', '.jpge', '#', '.txt', '.py', '.c', '.cpp', '.zip']
-
     # Check if a link is actully a file or a web page.
     def fileLinksCheck(self,URL):
-        if self.isAFileLink not in URL:
+        if any(x in URL for x in self.isAFileLink):
             return True
         else:
             return False
@@ -117,15 +133,28 @@ class Crawl:
                 print("Found links on page : "+URL)
             run += 1
 
+            # checking every link with the file list we have
+            if self.fileLinksCheck(links):
+                continue
+
+            # check for relative URL and convert them to Absolute URL
+            if not links.startswith('http'):
+                links = urljoin(URL,links)
+                print(links)
+
             # check if the link belongs to the same domain
             if links.startswith(self.main_URL):
-                # Check if link starts with '#' or ends with '.pdf'.
-                if '#' not in links or not links.endswith('.pdf'):
-                    pageLinks.append(a['href'])
+
+                # Check if link contains '#' or not.
+                if '#' not in links:
+                    pageLinks.append(links)
 
                     # Check all the links in the page are already crawled or not
-                    if a['href'] not in self.toCrawl and a['href'] not in self.crawled:
-                        self.toCrawl.append(a['href'])
+                    if links in self.crawled:
+                        continue
+                    else:
+                        if not links in self.toCrawl:
+                            self.toCrawl.append(links)
 
         # get title of the page
         title = soup.find('title')
@@ -140,17 +169,16 @@ class Crawl:
         self.toCrawl.remove(URL)
 
         # for getting logs in terminal
-        print(self.pageList)
+        print(len(self.pageList))
         print(self.toCrawl)
         print(len(self.toCrawl))
-
         # Always close all sorts of connections
         sourceCode.close()
 
         # Done : put it in a loop so that the program can become a complete crawler
 
     def make_dictionary(self,URL,title,listOfLinks):
-        d={
+        d = {
             "URL": URL,
             'Title' : title,
             'Links' : listOfLinks
@@ -160,8 +188,13 @@ class Crawl:
     def looper_Function(self):
         if len(self.toCrawl) != 0:
             for links in self.toCrawl:
-                fileWriting = open('links.txt', 'w+')
+                fileWriting = open('linkstocrawl.txt', 'w+')
                 for items in self.toCrawl:
+                    fileWriting.write("%s\n" % items)
+                fileWriting.close()
+
+                fileWriting = open('crawled.txt', 'w+')
+                for items in self.crawled:
                     fileWriting.write("%s\n" % items)
                 fileWriting.close()
 
@@ -178,6 +211,5 @@ class Crawl:
 
     #TODO : Convert list of dictionaries into NEO4J nodes and relation format
     #TODO : Look out for more RUNTIME errors - Run on more than one website
-    #TODO : Convert all the relative URL to Absolute URLs
 
-OBJ = Crawl("some random website URL!")
+OBJ = Crawl("http://www.vidhyashram.edu.in/")
