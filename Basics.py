@@ -32,7 +32,10 @@ class Crawl:
                    'js',        # for javascript files
                    'css',       # for style script file
                    'asp',       # for server side asp files
-                   'aspx'       # for server side aspx files
+                   'aspx',      # for server side aspx files
+                   'javascript:',     # for javascript popups
+                   '=',         # for any form values or query passing
+                   'mailto'     # for avoiding Mail links
      ]
 
     def __init__(self,main_URL):
@@ -41,6 +44,8 @@ class Crawl:
             self.robotParser(self.main_URL)
             self.toCrawl.append(self.main_URL)
             self.looper_Function()
+            print(" All links fetched ")
+            exit(0)
 
     # returns all the unique values from the list
     def giveSets(self,lists):
@@ -111,7 +116,6 @@ class Crawl:
             self.logs.append("Connection reset")
             return
 
-
         pageLinks = []
 
         packets = sourceCode.text
@@ -121,9 +125,11 @@ class Crawl:
         # A check to see the number of links in page are not zero.
         # If they are 0 then remove link from the toCrawl list and exit
         if len(soup.find_all('a',href=True)) == 0:
-            self.toCrawl.remove(URL)
-            self.crawled.append(URL)
-            self.logs.append(URL + "Crawled, Single Link Page")
+            if URL in self.toCrawl:
+                self.toCrawl.remove(URL)
+            if URL not in self.crawled:
+                self.crawled.append(URL)
+            self.logs.append(URL + " Crawled, Single Link Page")
             return
 
         # find all the links (anchor tag with href attribute) in the page
@@ -145,37 +151,57 @@ class Crawl:
             # check if the link belongs to the same domain
             if links.startswith(self.main_URL):
 
-                # Check if link contains '#' or not.
-                if '#' not in links:
-                    pageLinks.append(links)
+                # Check all the links in the page are already crawled or not
+                if links in self.crawled:
+                    continue
+                else:
+                    if not links in self.toCrawl:
+                        self.toCrawl.append(links)
 
-                    # Check all the links in the page are already crawled or not
-                    if links in self.crawled:
-                        continue
-                    else:
-                        if not links in self.toCrawl:
-                            self.toCrawl.append(links)
 
-        # get title of the page
+        # get title of the page &
+        # if title is not there then use URL as page title to avoid empty values from getting passed
         title = soup.find('title')
+        try:
+            if title.string and not title.string.isspace():
+                title = title.string
+        except:
+            title = str(URL)
 
-        # convert to an API like structure
-        self.make_dictionary(URL,title.string,pageLinks)
+        # convert to JSON
+        self.make_dictionary(URL,title,pageLinks)
 
         # Put the current link in crawled list as it has been processed.
-        self.crawled.append(URL)
+        if URL not in self.crawled:
+            self.crawled.append(URL)
 
         # remove the page URL from toCrawl.
-        self.toCrawl.remove(URL)
+        if URL in self.toCrawl:
+            self.toCrawl.remove(URL)
 
         # for getting logs in terminal
-        print(len(self.pageList))
-        print(self.toCrawl)
-        print(len(self.toCrawl))
+        print("Total links found",len(self.pageList))
+        print("Links are",self.toCrawl)
+        print("Total number of links to be fetched ",len(self.toCrawl))
+
         # Always close all sorts of connections
         sourceCode.close()
 
-        # Done : put it in a loop so that the program can become a complete crawler
+        # write all the information in the file
+        fileWriting = open('linkstocrawl.txt', 'w')
+        for items in self.toCrawl:
+            fileWriting.write("%s\n" % items)
+        fileWriting.close()
+
+        fileWriting = open('crawled.txt', 'w')
+        for items in self.crawled:
+            fileWriting.write("%s\n" % items)
+        fileWriting.close()
+
+        fileWriting = open('logs.txt', 'w')
+        for items in self.logs:
+            fileWriting.write("%s\n" % items)
+        fileWriting.close()
 
     def make_dictionary(self,URL,title,listOfLinks):
         d = {
@@ -185,31 +211,15 @@ class Crawl:
         }
         self.pageList.append(d.copy())
 
+
     def looper_Function(self):
+        for links in self.toCrawl:
+            self.fetch_Links(links)
+
         if len(self.toCrawl) != 0:
-            for links in self.toCrawl:
-                fileWriting = open('linkstocrawl.txt', 'w+')
-                for items in self.toCrawl:
-                    fileWriting.write("%s\n" % items)
-                fileWriting.close()
-
-                fileWriting = open('crawled.txt', 'w+')
-                for items in self.crawled:
-                    fileWriting.write("%s\n" % items)
-                fileWriting.close()
-
-                fileWriting = open('logs.txt', 'w+')
-                for items in self.logs:
-                    fileWriting.write("%s\n" % items)
-                fileWriting.close()
-
-
-                self.fetch_Links(links)
-        else:
-            print(" All links fetched ")
-            exit(0)
+            self.looper_Function()
 
     #TODO : Convert list of dictionaries into NEO4J nodes and relation format
     #TODO : Look out for more RUNTIME errors - Run on more than one website
 
-OBJ = Crawl("http://www.vidhyashram.edu.in/")
+OBJ = Crawl("Some website URL")
