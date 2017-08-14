@@ -1,3 +1,16 @@
+'''
+August 2017
+
+Author : Shreyansh Lodha <slodha96@gmail.com>
+
+The aim of this script is to Crawl a given website
+And give back a API like result in the end
+Result will be list - List of all the web pages
+List will contain dicts - dicts will contain individual detail of every webpage
+Dict Structure - Title(Title of the page), URL(URL of the page), Links(Links on that page)  -- 11th August 2017
+
+'''
+
 from bs4 import BeautifulSoup
 from urllib import parse
 from urllib import robotparser
@@ -6,7 +19,7 @@ import requests
 
 from urllib.parse import urlsplit
 
-class Crawl:
+class Crawl(object):
     main_URL = ""          # base URL given by the user
     pageList = []          # list which will contain all the links in the end
     toCrawl = []           # list of pages which are to be crawled
@@ -45,7 +58,6 @@ class Crawl:
             self.toCrawl.append(self.main_URL)
             self.looper_Function()
             print(" All links fetched ")
-            exit(0)
 
     # returns all the unique values from the list
     def giveSets(self,lists):
@@ -101,6 +113,7 @@ class Crawl:
         except requests.exceptions.MissingSchema:
             self.toCrawl.remove(URL)
             self.logs.append(URL + "Not a URL")
+            conn.close()
             return
 
         # looking out for run time errors due to consistent requests being made
@@ -146,10 +159,11 @@ class Crawl:
             # check for relative URL and convert them to Absolute URL
             if not links.startswith('http'):
                 links = urljoin(URL,links)
-                print(links)
+                # print(links)
 
             # check if the link belongs to the same domain
             if links.startswith(self.main_URL):
+                pageLinks.append(links)
 
                 # Check all the links in the page are already crawled or not
                 if links in self.crawled:
@@ -181,8 +195,8 @@ class Crawl:
 
         # for getting logs in terminal
         print("Total links found",len(self.pageList))
-        print("Links are",self.toCrawl)
-        print("Total number of links to be fetched ",len(self.toCrawl))
+        print("Links Remaining",len(self.toCrawl))
+        print("Current Page ",URL)
 
         # Always close all sorts of connections
         sourceCode.close()
@@ -207,7 +221,7 @@ class Crawl:
         d = {
             "URL": URL,
             'Title' : title,
-            'Links' : listOfLinks
+            'Links' : listOfLinks,
         }
         self.pageList.append(d.copy())
 
@@ -219,7 +233,5 @@ class Crawl:
         if len(self.toCrawl) != 0:
             self.looper_Function()
 
-    #TODO : Convert list of dictionaries into NEO4J nodes and relation format
     #TODO : Look out for more RUNTIME errors - Run on more than one website
 
-OBJ = Crawl("Some website URL")
