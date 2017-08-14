@@ -9,6 +9,8 @@ The aim of this script is to convert the API like structure to a Neo4j Graph dat
 from Basics import Crawl
 from neo4j.v1 import GraphDatabase
 import authDetails
+import progressbar
+import time
 
 # List of variables required
 _property_URL = []
@@ -22,11 +24,13 @@ def insertNodes(website):
     obj = Crawl(website)
     # Empty the database before inserting new data
     emptyDB()
-
+    bar = progressbar.ProgressBar(max_value=len(obj.pageList))
+    counter = 0
     # Start session
     session = driver.session()
 
     for all_items in obj.pageList:
+        counter += 1
         # Fetch the details of the current page we are working with
         tempTitle = all_items['Title']
         tempURL = all_items['URL']
@@ -38,9 +42,8 @@ def insertNodes(website):
                     "ON CREATE SET n.Title = {title}",
                     {"url":tempURL, "title":tempTitle, "title":tempTitle})
 
-        print("Creating Graph for Page: ",tempTitle,"URL:",tempURL)
+        # print("Creating Graph for Page: ",tempTitle,"URL:",tempURL)
         for individual_links in all_items['Links']:
-            # Create (if not exist) a node for each link on the page we are processing
             session.run("MERGE (n:Link {URL : {url}})",
                         {"url":individual_links})
 
@@ -49,6 +52,8 @@ def insertNodes(website):
                         "WHERE a.URL = {parent} AND b.URL = {child}"
                         "CREATE (a)-[r:LINKS_TO]->(b)",
                         {"parent":tempURL, "child":individual_links})
+        time.sleep(0.1)
+        bar.update(counter)
 
     session.close()
 
@@ -59,5 +64,5 @@ def emptyDB():
     session.close()
 
 # Call the Program
-name = "https://christuniversity.in/"
+name = "http://www.vidhyashram.edu.in/"
 insertNodes(name)
