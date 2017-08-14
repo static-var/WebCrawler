@@ -1,3 +1,7 @@
 .idea
 Crawler/settings.py
 __pycache__
+linkstocrawl.txt
+logs.txt
+authDetails.py
+crawled.txt
